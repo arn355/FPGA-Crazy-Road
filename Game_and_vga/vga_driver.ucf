@@ -1,0 +1,19 @@
+
+# PlanAhead Generated physical constraints 
+
+NET "RGB[2]" LOC = P9;
+NET "RGB[1]" LOC = P7;
+NET "RGB[0]" LOC = P5;
+NET "CLK" LOC = P123;
+NET "HSYNC" LOC = P22;
+NET "VSYNC" LOC = P17;
+NET "RST" LOC = P24;
+NET "KEY_IN[0]" LOC = P126;
+NET "KEY_IN[1]" LOC = P131;
+NET "KEY_IN[2]" LOC = P133;
+NET "KEY_IN[3]" LOC = P137;
+
+NET "LED0" LOC = P82;
+NET "LED1" LOC = P81;
+NET "LED2" LOC = P80;
+NET "LED3" LOC = P79;
