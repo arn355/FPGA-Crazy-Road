@@ -252,24 +252,45 @@ begin
 					player_score <= player_score + 1;
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_1_x and player_x + player_w <= car_1_x + car_w and player_y >= car_1_y and player_y + player_h <= car_1_y + car_h)then
+				
+				elsif(player_x >= car_1_x and player_x <= car_1_x + car_w and ( (player_y >= car_1_y and player_y <= car_1_y + car_h) or (player_y + player_h <= car_1_y + car_h and player_y + player_h >= car_1_y) ))then
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_2_x and player_x + player_w <= car_2_x + car_w and player_y >= car_2_y and player_y + player_h <= car_2_y + car_h)then
+				--elsif(player_x >= car_1_x and player_x + player_w <= car_1_x + car_w and player_y >= car_1_y and player_y + player_h <= car_1_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				elsif(player_x >= car_2_x and player_x <= car_2_x + car_w and ( (player_y >= car_2_y and player_y <= car_2_y + car_h) or (player_y + player_h <= car_2_y + car_h and player_y + player_h >= car_2_y) ))then
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_3_x and player_x + player_w <= car_3_x + car_w and player_y >= car_3_y and player_y + player_h <= car_3_y + car_h)then
+				--elsif(player_x >= car_2_x and player_x + player_w <= car_2_x + car_w and player_y >= car_2_y and player_y + player_h <= car_2_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				elsif(player_x >= car_3_x and player_x <= car_3_x + car_w and ( (player_y >= car_3_y and player_y <= car_3_y + car_h) or (player_y + player_h <= car_3_y + car_h and player_y + player_h >= car_3_y) ))then
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_4_x and player_x + player_w <= car_4_x + car_w and player_y >= car_4_y and player_y + player_h <= car_4_y + car_h)then
+				--elsif(player_x >= car_3_x and player_x + player_w <= car_3_x + car_w and player_y >= car_3_y and player_y + player_h <= car_3_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				elsif(player_x >= car_4_x and player_x <= car_4_x + car_w and ( (player_y >= car_4_y and player_y <= car_4_y + car_h) or (player_y + player_h <= car_4_y + car_h and player_y + player_h >= car_4_y) ))then
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_5_x and player_x + player_w <= car_5_x + car_w and player_y >= car_5_y and player_y + player_h <= car_5_y + car_h)then
+				--elsif(player_x >= car_4_x and player_x + player_w <= car_4_x + car_w and player_y >= car_4_y and player_y + player_h <= car_4_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				elsif(player_x >= car_5_x and player_x <= car_5_x + car_w and ( (player_y >= car_5_y and player_y <= car_5_y + car_h) or (player_y + player_h <= car_5_y + car_h and player_y + player_h >= car_5_y) ))then
 					player_x <= 225;
 					player_y <= 335;
-				elsif(player_x >= car_6_x and player_x + player_w <= car_6_x + car_w and player_y >= car_6_y and player_y + player_h <= car_6_y + car_h)then
+				--elsif(player_x >= car_5_x and player_x + player_w <= car_5_x + car_w and player_y >= car_5_y and player_y + player_h <= car_5_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				elsif(player_x >= car_6_x and player_x <= car_6_x + car_w and ( (player_y >= car_6_y and player_y <= car_6_y + car_h) or (player_y + player_h <= car_6_y + car_h and player_y + player_h >= car_6_y) ))then
 					player_x <= 225;
 					player_y <= 335;
+				--elsif(player_x >= car_6_x and player_x + player_w <= car_6_x + car_w and player_y >= car_6_y and player_y + player_h <= car_6_y + car_h)then
+					--player_x <= 225;
+					--player_y <= 335;
+				
+					
 				end if;
 			else
 				player_debounce <= player_debounce + 1;
