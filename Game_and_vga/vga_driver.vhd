@@ -21,6 +21,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
+use ieee.math_real.all;
 
 -- Uncomment the following library declaration if using
 -- arithmetic functions with Signed or Unsigned values
@@ -38,11 +39,8 @@ entity vga_driver is
            VSYNC : out  STD_LOGIC;
            RGB : out  STD_LOGIC_VECTOR (2 downto 0);
 			  KEY_IN : in STD_LOGIC_VECTOR (3 downto 0);
-			  
-			  LED0 : out STD_LOGIC;
-			  LED1 : out STD_LOGIC;
-			  LED2 : out STD_LOGIC;
-			  LED3 : out STD_LOGIC);
+			  SW0 : in STD_LOGIC 
+			  );
 			  
 end vga_driver;
 
@@ -50,62 +48,67 @@ architecture Behavioral of vga_driver is
 
 	-- VGA
 	signal clk25 : std_logic := '0';
-	constant HD : integer := 509;  	-- Horizontal Display 
-	constant HFP : integer := 13;    -- Right border (front porch)
-	constant HSP : integer := 76;    -- Sync pulse (Retrace)
-	constant HBP : integer := 38;    -- Left boarder (back porch)
+	constant HD : natural := 509;  	-- Horizontal Display 
+	constant HFP : natural := 13;    -- Right border (front porch)
+	constant HSP : natural := 76;    -- Sync pulse (Retrace)
+	constant HBP : natural := 38;    -- Left boarder (back porch)
 	
-	constant VD : integer := 349;   	-- Vertical Display 
-	constant VFP : integer := 37;    -- Right border (front porch)
-	constant VSP : integer := 2;	   -- Sync pulse (Retrace)
-	constant VBP : integer := 60;    -- Left boarder (back porch)
+	constant VD : natural := 349;   	-- Vertical Display 
+	constant VFP : natural := 37;    -- Right border (front porch)
+	constant VSP : natural := 2;	   -- Sync pulse (Retrace)
+	constant VBP : natural := 60;    -- Left boarder (back porch)
 	
-	signal hPos : integer := 0;
-	signal vPos : integer := 0;
+	signal hPos : natural := 0;
+	signal vPos : natural := 0;
 
 	signal videoOn : std_logic := '1';
 	
 	-- Game static value
-	constant player_w : integer := 10;
-	constant	player_h : integer := 10;
-	constant player_speed : integer := 5;
-	constant	car_w : integer := 40;
-	constant	car_h : integer := 20;
+	constant player_w : natural := 10;
+	constant	player_h : natural := 10;
+	constant player_speed : natural := 5;
+	constant	car_w : natural := 40;
+	constant	car_h : natural := 20;
 	
-	-- signal car_x : integer := 20;
-	-- signal car_y : integer := 300;
-	-- signal car_debounce : integer := 0;
-	-- signal car_speed : integer := 10;
+	-- Game Over
+	signal game_over : std_logic := '0';
 	
 	-- Car
-	signal car_debounce : integer := 0;
-	signal car_1_x : integer := 10;
-	signal car_2_x : integer := 460;
-	signal car_3_x : integer := 10;
-	signal car_4_x : integer := 460;
-	signal car_5_x : integer := 10;
-	signal car_6_x : integer := 460;
-	
-	signal car_1_y : integer := 60;
-	signal car_2_y : integer := 100;
-	signal car_3_y : integer := 150;
-	signal car_4_y : integer := 200;
-	signal car_5_y : integer := 250;
-	signal car_6_y : integer := 300;
-	
-	signal car_1_speed : integer := 20;
-	signal car_2_speed : integer := 10;
-	signal car_3_speed : integer := 5;
-	signal car_4_speed : integer := 30;
-	signal car_5_speed : integer := 10;
-	signal car_6_speed : integer := 15;
+	signal car_debounce : natural := 0;
+
+	type car_position_array is array (1 to 6) of natural;
+	signal car_x : car_position_array := (10, 460, 10, 460, 10, 460);
+	signal car_y : car_position_array := (60, 100, 150, 200, 250, 300);
+
+	type car_speed_array is array (1 to 6) of natural;
+	signal car_speed : car_speed_array := (20, 10, 5, 30, 10, 15);
 	
 	-- Player
-	signal player_debounce : integer := 0;
-	signal player_x : integer := 225;
-	signal player_y : integer := 335;
+	type player_position is record
+		x : natural;
+		y : natural;
+	end record;
+	signal player : player_position := (x => 225, y => 335);
+
+	-- Player debounce time
+	signal player_debounce : natural := 0;
 	
-	signal player_score : integer := 0;
+	-- Player Score
+	signal player_score : natural := 0;
+	
+	-- Score Position
+	constant score_x : natural := 30;
+	constant score_x_ten : natural := 10;
+	constant score_y : natural := 10;
+	
+	-- Time Position
+	constant time_x : natural := 240;
+	constant time_x_ten : natural := 220;
+	constant time_y : natural := 10;
+	
+	-- Time countdown
+	signal countdown : natural := 60;
+	signal counter : natural := 0;
 	
 begin
 	--ALL Process Section
@@ -165,8 +168,8 @@ begin
 				VSYNC <= '0';
 			end if;
 		end if;
-	end process;	
-
+	end process;
+	
 	-- Video on process
 	video_on:process(clk25, RST, hPos, vPos)
 	begin
@@ -183,117 +186,138 @@ begin
 	
 	-- KEY_IN (right)(left)(down)(up) (P126)(P131)(P133)(P137)
 	game_logic:process(clk25, KEY_IN)
-	begin
+	begin	
 		if(clk25'event and clk25 = '1')then
-			if(car_debounce >= 1500000)then
-				car_debounce <= 0;				
-				if(car_1_x <= HD - 20)then
-					car_1_x <= car_1_x + car_1_speed;
-				else
-					car_1_x <= 10;
+			if(game_over = '0')then
+				if(SW0 = '1')then
+					if(counter >= 20000000)then
+						counter <= 0;
+						if(countdown > 1)then
+							countdown <= countdown - 1;
+						else
+							game_over <= '1';
+						end if;
+					else
+						counter <= counter + 1;
+					end if;
 				end if;
 				
-				if(car_2_x >= 40)then
-					car_2_x <= car_2_x - car_2_speed;
-				else
-					car_2_x <= 460;
-				end if;
-				
-				if(car_3_x <= HD - 20)then
-					car_3_x <= car_3_x + car_3_speed;
-				else
-					car_3_x <= 10;
-				end if;
-				
-				if(car_4_x >= 40)then
-					car_4_x <= car_4_x - car_4_speed;
-				else
-					car_4_x <= 460;
-				end if;
-				
-				if(car_5_x <= HD - 20)then
-					car_5_x <= car_5_x + car_5_speed;
-				else
-					car_5_x <= 10;
-				end if;
-				
-				if(car_6_x >= 40)then
-					car_6_x <= car_6_x - car_6_speed;
-				else
-					car_6_x <= 460;
-				end if;
-			else
-				car_debounce <= car_debounce + 1;
-			end if;
-			
-			if(player_debounce >= 1000000)then
-				player_debounce <= 0;
-				if(KEY_IN = "0001" and player_x <= HD - 20)then -- right
-					player_x <= player_x + player_speed;
-					LED0 <= '1';
-				elsif(KEY_IN = "0010" and player_x >= 20)then -- left
-					player_x <= player_x - player_speed;
-					LED1 <= '1';
-				elsif(KEY_IN = "1000" and player_y >= 40)then -- down
-					player_y <= player_y - player_speed;
-					LED2 <= '1';
-				elsif(KEY_IN = "0100" and player_y <= VD - 10)then -- up
-					player_y <= player_y + player_speed;
-					LED3 <= '1';
-				else
-					LED0 <= '0';
-					LED1 <= '0';
-					LED2 <= '0';
-					LED3 <= '0';
-				end if;
-				
-				-- Collision
-				if(player_y <= 55)then
-					player_score <= player_score + 1;
-					player_x <= 225;
-					player_y <= 335;
-				
-				elsif(player_x >= car_1_x and player_x <= car_1_x + car_w and ( (player_y >= car_1_y and player_y <= car_1_y + car_h) or (player_y + player_h <= car_1_y + car_h and player_y + player_h >= car_1_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_1_x and player_x + player_w <= car_1_x + car_w and player_y >= car_1_y and player_y + player_h <= car_1_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				elsif(player_x >= car_2_x and player_x <= car_2_x + car_w and ( (player_y >= car_2_y and player_y <= car_2_y + car_h) or (player_y + player_h <= car_2_y + car_h and player_y + player_h >= car_2_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_2_x and player_x + player_w <= car_2_x + car_w and player_y >= car_2_y and player_y + player_h <= car_2_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				elsif(player_x >= car_3_x and player_x <= car_3_x + car_w and ( (player_y >= car_3_y and player_y <= car_3_y + car_h) or (player_y + player_h <= car_3_y + car_h and player_y + player_h >= car_3_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_3_x and player_x + player_w <= car_3_x + car_w and player_y >= car_3_y and player_y + player_h <= car_3_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				elsif(player_x >= car_4_x and player_x <= car_4_x + car_w and ( (player_y >= car_4_y and player_y <= car_4_y + car_h) or (player_y + player_h <= car_4_y + car_h and player_y + player_h >= car_4_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_4_x and player_x + player_w <= car_4_x + car_w and player_y >= car_4_y and player_y + player_h <= car_4_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				elsif(player_x >= car_5_x and player_x <= car_5_x + car_w and ( (player_y >= car_5_y and player_y <= car_5_y + car_h) or (player_y + player_h <= car_5_y + car_h and player_y + player_h >= car_5_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_5_x and player_x + player_w <= car_5_x + car_w and player_y >= car_5_y and player_y + player_h <= car_5_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				elsif(player_x >= car_6_x and player_x <= car_6_x + car_w and ( (player_y >= car_6_y and player_y <= car_6_y + car_h) or (player_y + player_h <= car_6_y + car_h and player_y + player_h >= car_6_y) ))then
-					player_x <= 225;
-					player_y <= 335;
-				--elsif(player_x >= car_6_x and player_x + player_w <= car_6_x + car_w and player_y >= car_6_y and player_y + player_h <= car_6_y + car_h)then
-					--player_x <= 225;
-					--player_y <= 335;
-				
+				if(car_debounce >= 1500000)then
+					car_debounce <= 0;
 					
+					for i in 1 to 6 loop
+						if (i = 1 or i = 3 or i = 5)then
+							car_x(i) <= car_x(i) + car_speed(i);
+							if (car_x(i) >= HD - 40) then
+								car_x(i) <= 10;
+								if(i = 1)then
+									car_speed(1) <= 15;
+									car_speed(2) <= 25;
+									car_speed(3) <= 30;
+									car_speed(4) <= 10;
+									car_speed(5) <= 5;
+									car_speed(6) <= 20;
+								elsif(i = 3)then
+									car_speed(1) <= 30;
+									car_speed(2) <= 10;
+									car_speed(3) <= 15;
+									car_speed(4) <= 25;
+									car_speed(5) <= 20;
+									car_speed(6) <= 5;
+								else
+									car_speed(1) <= 25;
+									car_speed(2) <= 30;
+									car_speed(3) <= 10;
+									car_speed(4) <= 5;
+									car_speed(5) <= 15;
+									car_speed(6) <= 20;
+								end if;
+							end if ;
+						else
+							car_x(i) <= car_x(i) - car_speed(i);
+							if (car_x(i) <= 40) then
+								car_x(i) <= 460;
+								if(i = 2)then
+									car_speed(1) <= 10;
+									car_speed(2) <= 5;
+									car_speed(3) <= 20;
+									car_speed(4) <= 15;
+									car_speed(5) <= 25;
+									car_speed(6) <= 30;
+								elsif(i = 4)then
+									car_speed(1) <= 30;
+									car_speed(2) <= 10;
+									car_speed(3) <= 5;
+									car_speed(4) <= 25;
+									car_speed(5) <= 20;
+									car_speed(6) <= 15;
+								else
+									car_speed(1) <= 5;
+									car_speed(2) <= 20;
+									car_speed(3) <= 30;
+									car_speed(4) <= 25;
+									car_speed(5) <= 15;
+									car_speed(6) <= 10;
+								end if;
+							end if ;
+						end if;
+					end loop;
+				else
+					car_debounce <= car_debounce + 1;
 				end if;
-			else
-				player_debounce <= player_debounce + 1;
+				
+				if(player_debounce >= 1000000)then
+					player_debounce <= 0;
+					
+					if(KEY_IN = "0001" and player.x <= HD - 20)then -- right
+						player.x <= player.x + player_speed;
+					elsif(KEY_IN = "0010" and player.x >= 20)then -- left
+						player.x <= player.x - player_speed;
+					elsif(KEY_IN = "1000" and player.y >= 40)then -- down
+						player.y <= player.y - player_speed;
+					elsif(KEY_IN = "0100" and player.y <= VD - 10)then -- up
+						player.y <= player.y + player_speed;
+					end if;
+					
+					-- Collision
+					if(player.y <= 55)then
+						if(SW0 = '1')then
+							player_score <= player_score + 1;
+						end if;
+						player.x <= 225;
+						player.y <= 335;
+					
+					elsif(player.x + 5 >= car_x(1) and player.x + 5 <= car_x(1) + car_w and player.y + 5 >= car_y(1) and player.y + 5 <= car_y(1) + car_h)then
+						player.x <= 225;
+						player.y <= 335;
+					elsif(player.x + 5 >= car_x(2) and player.x + 5 <= car_x(2) + car_w and player.y + 5 >= car_y(2) and player.y + 5 <= car_y(2) + car_h)then
+						player.x <= 225;
+						player.y <= 335;
+					elsif(player.x + 5 >= car_x(3) and player.x + 5 <= car_x(3) + car_w and player.y + 5 >= car_y(3) and player.y + 5 <= car_y(3) + car_h)then
+						player.x <= 225;
+						player.y <= 335;
+					elsif(player.x + 5 >= car_x(4) and player.x + 5 <= car_x(4) + car_w and player.y + 5 >= car_y(4) and player.y + 5 <= car_y(4) + car_h)then
+						player.x <= 225;
+						player.y <= 335;
+					elsif(player.x + 5 >= car_x(5) and player.x + 5 <= car_x(5) + car_w and player.y + 5 >= car_y(5) and player.y + 5 <= car_y(5) + car_h)then
+						player.x <= 225;
+						player.y <= 335;
+					elsif(player.x + 5 >= car_x(6) and player.x + 5 <= car_x(6) + car_w and player.y + 5 >= car_y(6) and player.y + 5 <= car_y(6) + car_h)then
+						player.x <= 225;
+					 	player.y <= 335;
+					end if;
+				else
+					player_debounce <= player_debounce + 1;
+				end if;
+			else	
+				if(KEY_IN = "0000" and SW0 = '0')then -- restart game
+						player.x <= 225;
+						player.y <= 335;
+						player_score <= 0;
+						countdown <= 60;
+
+						game_over <= '0';
+				end if;
 			end if;
 		end if;
 	end process;
@@ -306,39 +330,519 @@ begin
 		elsif(clk25'event and clk25 = '1')then
 			if(videoOn='1') then
 	
-				-- (hPos >= 10 and hPos <= 60) AND (vPos >= 10 and vPos <= 60)
 				-- 500 (right corner) (509)
-				-- 5 (left corner) (0)
 				-- 349 (down corner)
-				
-				if((hPos >= 5 and hPos <= 500) AND (vPos >= 50 and vPos <= 55))then -- Finish line
-					RGB <= "111";
-				elsif((hPos >= 5 and hPos <= 500) AND (vPos >=325 and vPos <= 330))then -- Start line 
-					RGB <= "111";
+				if(game_over = '0') then
+
+					if((hPos >= 5 and hPos <= 500) AND (vPos >= 50 and vPos <= 55))then -- Finish line
+						RGB <= "111";
+					elsif((hPos >= 5 and hPos <= 500) AND (vPos >=325 and vPos <= 330))then -- Start line 
+						RGB <= "111";
 					
-				elsif((hPos >= car_1_x and hPos <= car_1_x + car_w) AND (vPos >= car_1_y and vPos <= car_1_y + car_h))then
-					RGB <= "101";
-				elsif((hPos >= car_2_x and hPos <= car_2_x + car_w) AND (vPos >= car_2_y and vPos <= car_2_y + car_h))then
-					RGB <= "101";
-				elsif((hPos >= car_3_x and hPos <= car_3_x + car_w) AND (vPos >= car_3_y and vPos <= car_3_y + car_h))then
-					RGB <= "101";
-				elsif((hPos >= car_4_x and hPos <= car_4_x + car_w) AND (vPos >= car_4_y and vPos <= car_4_y + car_h))then
-					RGB <= "101";
-				elsif((hPos >= car_5_x and hPos <= car_5_x + car_w) AND (vPos >= car_5_y and vPos <= car_5_y + car_h))then
-					RGB <= "101";
-				elsif((hPos >= car_6_x and hPos <= car_6_x + car_w) AND (vPos >= car_6_y and vPos <= car_6_y + car_h))then
-					RGB <= "101";
+					-- Cars
+					elsif((hPos >= car_x(1) and hPos <= car_x(1) + car_w) AND (vPos >= car_y(1) and vPos <= car_y(1) + car_h))then
+						RGB <= "101";
+					elsif((hPos >= car_x(2) and hPos <= car_x(2) + car_w) AND (vPos >= car_y(2) and vPos <= car_y(2) + car_h))then
+						RGB <= "101";
+					elsif((hPos >= car_x(3) and hPos <= car_x(3) + car_w) AND (vPos >= car_y(3) and vPos <= car_y(3) + car_h))then
+						RGB <= "101";
+					elsif((hPos >= car_x(4) and hPos <= car_x(4) + car_w) AND (vPos >= car_y(4) and vPos <= car_y(4) + car_h))then
+						RGB <= "101";
+					elsif((hPos >= car_x(5) and hPos <= car_x(5) + car_w) AND (vPos >= car_y(5) and vPos <= car_y(5) + car_h))then
+						RGB <= "101";
+					elsif((hPos >= car_x(6) and hPos <= car_x(6) + car_w) AND (vPos >= car_y(6) and vPos <= car_y(6) + car_h))then
+						RGB <= "101";
 					
-				elsif((hPos >= player_x and hPos <= player_x + player_w) AND (vPos >= player_y and vPos <= player_y + player_h))then
-					RGB <= "110";	
+					-- Player
+					elsif((hPos >= player.x and hPos <= player.x + player_w) AND (vPos >= player.y and vPos <= player.y + player_h))then
+						RGB <= "110";
+					
+					else
+						RGB <= "000"; --"000"
+					end if;
+						
+					
+					-- Time
+					-- Ten
+					if(countdown / 10 = 0)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= time_y + 5 and vPos <= time_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 1)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 2)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 15) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+					
+					elsif(countdown / 10 = 3)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 4)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 5)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 6)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 7)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 8)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown / 10 = 9)then
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x_ten + 20 + 5 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x_ten + 20 and hPos <= time_x_ten + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+					end if;
+
+					-- Unit
+					if(countdown mod 10 = 0)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= time_y + 5 and vPos <= time_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 1)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 2)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 15) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+					
+					elsif(countdown mod 10 = 3)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 4)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= score_y and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 5)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 6)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 7)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 25))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 8)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+						
+					elsif(countdown mod 10 = 9)then
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 15) AND (vPos >= time_y and vPos <= time_y + 25))then
+							RGB <= "111";
+						end if;
+						if((hPos >= time_x + 20 + 5 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+							RGB <= "000";
+						end if;
+						if((hPos >= time_x + 20 and hPos <= time_x + 20 + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+							RGB <= "000";
+						end if;
+					end if;
+
 				else
-					RGB <= "000"; --"000"
+					if((hPos >= 0 and hPos <= HD) AND (vPos >= 0 and vPos <= VD))then
+						RGB <= "000";
+					end if;
+
+					-- E
+					if((hPos >= 200 and hPos <= 200 + 30) AND (vPos >= 150 and vPos <= 150 + 50))then
+						RGB <= "111";
+					end if;
+					if((hPos >= 200 + 10 and hPos <= 200 + 30) AND (vPos >= 150 + 10 and vPos <= 150 + 20))then
+						RGB <= "000";
+					end if;
+					if((hPos >= 200 + 10 and hPos <= 200 + 30) AND (vPos >= 150 + 30 and vPos <= 150 + 40))then
+						RGB <= "000";
+					end if;
+					
+					-- N
+					if((hPos >= 240 and hPos <= 240 + 30) AND (vPos >= 150 and vPos <= 150 + 50))then
+						RGB <= "111";
+					end if;
+					if((hPos >= 240 + 10 and hPos <= 240 + 20) AND (vPos >= 150 + 10 and vPos <= 150 + 50))then
+						RGB <= "000";
+					end if;
+					
+					-- D
+					if((hPos >= 280 and hPos <= 280 + 30) AND (vPos >= 150 and vPos <= 150 + 50))then
+						RGB <= "111";
+					end if;
+					if((hPos >= 280 + 20 and hPos <= 280 + 30) AND (vPos >= 150 and vPos <= 150 + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= 280 + 10 and hPos <= 280 + 20) AND (vPos >= 150 + 10 and vPos <= 150 + 40))then
+						RGB <= "000";
+					end if;
+					if((hPos >= 280 + 20 and hPos <= 280 + 30) AND (vPos >= 150 + 40 and vPos <= 150 + 50))then
+						RGB <= "000";
+					end if;
+					
 				end if;
-	
+
+				-- Score
+				-- Ten
+				if(player_score / 10 = 0)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+				
+				elsif(player_score / 10 = 1)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 2)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 15) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 3)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 4)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten+ 10) AND (vPos >= score_y + 15 and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 5)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 6)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 7)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 8)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score / 10 = 9)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;	
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+				end if;
+				
+				-- Unit
+				if(player_score mod 10 = 0)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 1)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 2)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 15) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 3)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 4)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x and hPos <= score_x+ 10) AND (vPos >= score_y + 15 and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 5)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 6)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 15) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 7)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 25))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 8)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+					
+				elsif(player_score mod 10 = 9)then
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+				end if;
+
+				-- player score exceed 99
+				if(player_score > 99)then
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x_ten + 5 and hPos <= score_x_ten + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;	
+					if((hPos >= score_x_ten and hPos <= score_x_ten + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;	
+
+					if((hPos >= score_x and hPos <= score_x + 15) AND (vPos >= score_y and vPos <= score_y + 25))then
+						RGB <= "111";
+					end if;
+					if((hPos >= score_x + 5 and hPos <= score_x + 10) AND (vPos >= score_y + 5 and vPos <= score_y + 10))then
+						RGB <= "000";
+					end if;
+					if((hPos >= score_x and hPos <= score_x + 10) AND (vPos >= score_y + 15 and vPos <= score_y + 20))then
+						RGB <= "000";
+					end if;
+				end if;
+
 			else
 				RGB <= "000"; --"000"
-			end if;
-		end if;
+			end if; -- if video	
+		end if; -- if RST
 	end process;
 
 end Behavioral;
