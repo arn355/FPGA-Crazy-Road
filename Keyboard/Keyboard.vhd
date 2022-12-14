@@ -32,7 +32,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 entity Keyboard is
     Port ( CLK : in  STD_LOGIC;
            KEY_IN : in  STD_LOGIC_VECTOR (3 downto 0);
-           KEY_OUT : out  STD_LOGIC_VECTOR (3 downto 0));
+           KEY_OUT : out  STD_LOGIC_VECTOR (3 downto 0)
+			  );
 end Keyboard;
 
 architecture Behavioral of Keyboard is
@@ -54,38 +55,16 @@ begin
 	Keyboard_output:process(clk25, KEY_IN)
 	begin
 		if(clk25'event and clk25 = '1')then
-			if(KEY_IN = "0000")then
-				KEY_OUT <= "0000";
-			elsif(KEY_IN = "0001")then
-				KEY_OUT <= "0001";
-			elsif(KEY_IN = "0010")then
-				KEY_OUT <= "0010";
-			elsif(KEY_IN = "0011")then
-				KEY_OUT <= "0011";
+			if(KEY_IN = "1000")then
+				KEY_OUT <= "1000";
 			elsif(KEY_IN = "0100")then
 				KEY_OUT <= "0100";
-			elsif(KEY_IN = "0101")then
-				KEY_OUT <= "0101";
-			elsif(KEY_IN = "0110")then
-				KEY_OUT <= "0110";
-			elsif(KEY_IN = "0111")then
-				KEY_OUT <= "0111";	
-			elsif(KEY_IN = "1000")then
-				KEY_OUT <= "1000";
-			elsif(KEY_IN = "1001")then
-				KEY_OUT <= "1001";
-			elsif(KEY_IN = "1010")then
-				KEY_OUT <= "1010";
-			elsif(KEY_IN = "1011")then
-				KEY_OUT <= "1011";
-			elsif(KEY_IN = "1100")then
-				KEY_OUT <= "1100";
-			elsif(KEY_IN = "1101")then
-				KEY_OUT <= "1101";
-			elsif(KEY_IN = "1110")then
-				KEY_OUT <= "1110";
-			elsif(KEY_IN = "1111")then
-				KEY_OUT <= "1111";
+			elsif(KEY_IN = "0010")then
+				KEY_OUT <= "0010";
+			elsif(KEY_IN = "0001")then
+				KEY_OUT <= "0001";
+			else
+				KEY_OUT <= "0000";
 			end if;
 		end if;
 	end process;
